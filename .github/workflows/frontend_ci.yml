@@ -1,55 +1,45 @@
 # week08/.github/workflows/frontend_ci.yml
-name: Frontend CI/CD
+name: Frontend CI — Build & Push to ACR
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend_ci.yml'
+  workflow_dispatch:
 
 env:
-  REGISTRY: ${{ secrets.REGISTRY_LOGIN_SERVER }}   # e.g. sarah7p28acr.azurecr.io
   IMAGE_NAME: frontend
-  SHA_TAG: ${{ github.sha }}
+  REGISTRY: ${{ secrets.REGISTRY_LOGIN_SERVER }}   # e.g., sarah7p28acr.azurecr.io
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }} # unique traceable tag
 
 jobs:
   build_and_push_frontend:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Buildx for multi-arch and better caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: ACR login
+      - name: Log in to Azure Container Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | \
-          docker login "${{ env.REGISTRY }}" \
+          docker login "${{ secrets.REGISTRY_LOGIN_SERVER }}" \
             -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
 
-      # Optional: show we’re using the tag values
-      - name: Show tags
+      - name: Build and push image (linux/amd64)
         run: |
-          echo "Pushing ${REGISTRY}/${IMAGE_NAME}:latest"
-          echo "Pushing ${REGISTRY}/${IMAGE_NAME}:${SHA_TAG}"
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$REGISTRY/$IMAGE_NAME:latest" \
+            -t "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" \
+            ./frontend \
+            --push
 
-      - name: Build & Push (linux/amd64)
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.SHA_TAG }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
-
-      - name: Docker logout
+      - name: Logout (tidy up)
         if: always()
-        run: docker logout "${{ env.REGISTRY }}"
+        run: docker logout "${{ secrets.REGISTRY_LOGIN_SERVER }}"
