@@ -3,7 +3,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: frontend               # match your existing deployment name
   labels:
     app: frontend
 spec:
@@ -16,24 +16,31 @@ spec:
       labels:
         app: frontend
     spec:
+      imagePullSecrets:
+        - name: acr-pull-secret   # ensure ACR pulls work
       containers:
-      - name: frontend-container
-        image: durgeshsamariya.azurecr.io/frontend:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 80
+        - name: frontend-container  # match your existing container name
+          image: sarah7p28acr.azurecr.io/frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          # FYI: env below are not used by a static Nginx site; safe to remove.
+          # env:
+          #   - name: PRODUCT_API_URL
+          #     value: "http://4.195.18.94:8000"
+          #   - name: ORDER_API_URL
+          #     value: "http://20.227.109.201:8001"
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-w08e1 # Service name matches
-  labels:
-    app: frontend
+  name: frontend-w08e1          # keep existing service name you’re using
 spec:
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
     - protocol: TCP
-      port: 80 # The port the service listens on inside the cluster
-      targetPort: 80 # The port on the Pod (containerPort where Nginx runs)
-  type: LoadBalancer # Exposes the service on a port on each Node's IP
+      port: 80
+      targetPort: 80
